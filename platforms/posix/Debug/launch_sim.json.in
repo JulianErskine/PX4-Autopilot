@@ -146,6 +146,8 @@
             "description": "PX4_SIM_MODEL",
             "options": [
               "iris",
+              "crazy2fly",
+              "LS2N_hexarotor",
               "typhoon_h480",
               "plane",
               "plane_catapult",
