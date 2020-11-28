@@ -1,0 +1,12 @@
+#!/bin/sh
+#
+# @name LS2N Crazy2Fly quadrotor
+#
+# @type + Quadrotor +
+#
+# @maintainer Julian Erskine <julian.erskine@ls2n.fr>
+#
+
+. ${R}etc/init.d/rc.mc_defaults
+
+set MIXER quad_+

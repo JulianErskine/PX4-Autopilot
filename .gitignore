@@ -16,6 +16,7 @@
 Testing/
 Packages/*
 build/*
+*/build/*
 build_*/
 cscope.out
 cscope.in.out

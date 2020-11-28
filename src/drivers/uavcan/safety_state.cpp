@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2019 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,43 +31,47 @@
  *
  ****************************************************************************/
 
-#include "../PreFlightCheck.hpp"
+/**
+ * @file safety_state.cpp
+ *
+ * @author CUAVcaijie <caijie@cuav.net>
+ */
 
-#include <drivers/drv_hrt.h>
-#include <HealthFlags.h>
-#include <px4_defines.h>
-#include <systemlib/mavlink_log.h>
-#include <uORB/Subscription.hpp>
-#include <uORB/topics/sensor_baro.h>
+#include "safety_state.hpp"
 
-using namespace time_literals;
-
-bool PreFlightCheck::baroCheck(orb_advert_t *mavlink_log_pub, vehicle_status_s &status, const uint8_t instance,
-			       const bool optional, int32_t &device_id, const bool report_fail)
+UavcanSafetyState::UavcanSafetyState(uavcan::INode &node) :
+	_safety_state_pub(node),
+	_timer(node)
 {
-	const bool exists = (orb_exists(ORB_ID(sensor_baro), instance) == PX4_OK);
-	bool valid = false;
+}
 
-	if (exists) {
-		uORB::SubscriptionData<sensor_baro_s> baro{ORB_ID(sensor_baro), instance};
-
-		valid = (baro.get().device_id != 0) && (baro.get().timestamp != 0);
-
-		if (!valid) {
-			if (report_fail) {
-				mavlink_log_critical(mavlink_log_pub, "Preflight Fail: no valid data from Baro %u", instance);
-			}
-		}
-
-	} else {
-		if (!optional && report_fail) {
-			mavlink_log_critical(mavlink_log_pub, "Preflight Fail: Baro Sensor %u missing", instance);
-		}
+int UavcanSafetyState::init()
+{
+	/*
+	 * Setup timer and call back function for periodic updates
+	 */
+	if (!_timer.isRunning()) {
+		_timer.setCallback(TimerCbBinder(this, &UavcanSafetyState::periodic_update));
+		_timer.startPeriodic(uavcan::MonotonicDuration::fromMSec(1000 / MAX_RATE_HZ));
 	}
 
-	if (instance == 0) {
-		set_health_flags(subsystem_info_s::SUBSYSTEM_TYPE_ABSPRESSURE, exists, !optional, valid, status);
-	}
+	return 0;
+}
 
-	return valid;
+void UavcanSafetyState::periodic_update(const uavcan::TimerEvent &)
+{
+	actuator_armed_s actuator_armed;
+
+	if (_actuator_armed_sub.update(&actuator_armed)) {
+		ardupilot::indication::SafetyState cmd;
+
+		if (actuator_armed.armed || actuator_armed.prearmed) {
+			cmd.status = cmd.STATUS_SAFETY_OFF;
+
+		} else {
+			cmd.status = cmd.STATUS_SAFETY_ON;
+		}
+
+		(void)_safety_state_pub.broadcast(cmd);
+	}
 }
